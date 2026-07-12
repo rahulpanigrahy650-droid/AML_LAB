@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Linear Regression Calculator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="container">
+    <h1>📈 Linear Regression Calculator</h1>
+    <p class="subtitle">Least Squares Method</p>
+
+    <form method="POST" class="card">
+      <label>X Values <span>(comma separated)</span></label>
+      <input type="text" name="x_values" value="{{ x_input }}" placeholder="e.g. 1,2,3,4,5,6" required>
+
+      <label>Y Values <span>(comma separated)</span></label>
+      <input type="text" name="y_values" value="{{ y_input }}" placeholder="e.g. 2,3,5,4,6,7" required>
+
+      <div class="btn-row">
+        <button type="submit" name="action" value="calculate">Calculate</button>
+        <button type="submit" name="action" value="visualize" class="btn-secondary">Visualize</button>
+      </div>
+    </form>
+
+    {% if error %}
+      <div class="card error">⚠️ {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <div class="card">
+        <h2>Equation</h2>
+        <p class="equation">{{ result.equation }}</p>
+      </div>
+
+      <div class="card">
+        <h2>Values</h2>
+        <div class="grid">
+          <div class="box"><span class="label">n</span><span class="value">{{ result.n }}</span></div>
+          <div class="box"><span class="label">Σx</span><span class="value">{{ result.sum_x }}</span></div>
+          <div class="box"><span class="label">Σy</span><span class="value">{{ result.sum_y }}</span></div>
+          <div class="box"><span class="label">Σxy</span><span class="value">{{ result.sum_xy }}</span></div>
+          <div class="box"><span class="label">Σx²</span><span class="value">{{ result.sum_x2 }}</span></div>
+          <div class="box"><span class="label">Slope (m)</span><span class="value">{{ result.slope }}</span></div>
+          <div class="box"><span class="label">Intercept (b)</span><span class="value">{{ result.intercept }}</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Model Accuracy</h2>
+        <div class="grid">
+          <div class="box"><span class="label">MAE</span><span class="value">{{ result.mae }}</span></div>
+          <div class="box"><span class="label">MSE</span><span class="value">{{ result.mse }}</span></div>
+          <div class="box"><span class="label">RMSE</span><span class="value">{{ result.rmse }}</span></div>
+          <div class="box"><span class="label">R²</span><span class="value">{{ result.r2 }}</span></div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if show_graph %}
+      <div class="card">
+        <h2>Graph</h2>
+        <img src="{{ url_for('static', filename='graph.png') }}?v={{ range(1,100000) | random }}"
+             alt="Regression graph" class="graph">
+      </div>
+    {% endif %}
+  </div>
+
+</body>
+</html>
