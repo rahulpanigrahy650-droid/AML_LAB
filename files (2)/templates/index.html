@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Linear Regression Calculator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="container">
+    <h1>Linear Regression Calculator</h1>
+    <p class="subtitle">Least Squares Method</p>
+
+    <form method="POST" class="card" novalidate>
+      <label>X Values <span>(comma separated)</span></label>
+      <input type="text" name="x_values" value="{{ x_input }}" placeholder="e.g. 1,2,3,4,5,6" required>
+
+      <label>Y Values <span>(comma separated)</span></label>
+      <input type="text" name="y_values" value="{{ y_input }}" placeholder="e.g. 2,3,5,4,6,7" required>
+
+      <div class="btn-row">
+        <button type="submit" name="action" value="calculate">Calculate</button>
+        <button type="submit" name="action" value="visualize" class="btn-secondary">Visualize</button>
+        <button type="submit" name="action" value="reset" class="btn-secondary">Reset</button>
+      </div>
+    </form>
+
+    {% if error %}
+      <div class="card error"> {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <div class="card">
+        <h2>Equation</h2>
+        <p class="equation">{{ result.equation }}</p>
+      </div>
+
+      <div class="card">
+        <h2>Values</h2>
+        <div class="grid">
+          {% for label, value in result.summary %}
+            <div class="box">
+              <span class="label">{{ label }}</span>
+              <span class="value">{{ value }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Model Accuracy</h2>
+        <div class="grid">
+          {% for label, value in result.accuracy %}
+            <div class="box">
+              <span class="label">{{ label }}</span>
+              <span class="value">{{ value }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if show_graph %}
+      <div class="card">
+        <h2>Graph</h2>
+        <img src="{{ url_for('static', filename='graph.png') }}?v={{ range(1,100000) | random }}"
+             alt="Regression graph" class="graph">
+      </div>
+    {% endif %}
+  </div>
+
+</body>
+</html>
