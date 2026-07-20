@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multiple Linear Regression</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+    <h1>Multiple Linear Regression</h1>
+
+    <!-- Step 1: number of features -->
+    <div class="card">
+        <h2>1. Setup</h2>
+        <label>Number of Features</label>
+        <input type="number" id="numFeatures" min="1" max="10" placeholder="e.g. 3">
+        <button class="btn btn-secondary" onclick="generateFields()">Generate Fields</button>
+    </div>
+
+    <!-- Step 2: dynamically generated feature + target inputs -->
+    <div class="card" id="featuresCard" style="display:none;">
+        <h2>2. Training Data</h2>
+        <p class="hint">Enter comma-separated values for each column. Every column (features + target) must have the same number of values.</p>
+        <div id="featureFields"></div>
+
+        <label>Target Feature Name</label>
+        <input type="text" id="targetName" placeholder="e.g. price">
+        <label>Target Values (comma-separated)</label>
+        <input type="text" id="targetValues" placeholder="e.g. 10,20,30,40">
+    </div>
+
+    <!-- Step 3: test row for prediction -->
+    <div class="card" id="testCard" style="display:none;">
+        <h2>3. Values to Predict</h2>
+        <p class="hint">Enter one new value per feature to get a prediction.</p>
+        <div id="testFields"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="button-row">
+        <button class="btn btn-primary" onclick="trainAndPredict()">Train &amp; Predict</button>
+        <button class="btn btn-visualize" onclick="visualize()">Visualize</button>
+        <button class="btn btn-reset" onclick="resetAll()">Reset</button>
+    </div>
+
+    <div id="errorBox" class="error-box" style="display:none;"></div>
+
+    <!-- Results -->
+    <div class="card" id="resultsCard" style="display:none;">
+        <h2>Results</h2>
+        <div class="result-grid">
+            <div class="result-box">
+                <span class="result-label">Predicted Value</span>
+                <span class="result-value" id="predictionValue">-</span>
+            </div>
+            <div class="result-box">
+                <span class="result-label">R&sup2; Score</span>
+                <span class="result-value" id="r2Value">-</span>
+            </div>
+            <div class="result-box">
+                <span class="result-label">MSE</span>
+                <span class="result-value" id="mseValue">-</span>
+            </div>
+            <div class="result-box">
+                <span class="result-label">RMSE</span>
+                <span class="result-value" id="rmseValue">-</span>
+            </div>
+            <div class="result-box">
+                <span class="result-label">MAE</span>
+                <span class="result-value" id="maeValue">-</span>
+            </div>
+        </div>
+        <h3>Coefficients</h3>
+        <table id="coefTable"></table>
+    </div>
+
+    <!-- Graphs -->
+    <div class="card" id="graphsCard" style="display:none;">
+        <h2>Visualizations</h2>
+        <div class="graph-grid">
+            <div>
+                <h3>Regression Plot</h3>
+                <img id="regressionPlot">
+            </div>
+            <div>
+                <h3>Residuals / Metrics Plot</h3>
+                <img id="metricsPlot">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let featureNames = [];
+
+function generateFields() {
+    const n = parseInt(document.getElementById("numFeatures").value);
+    if (!n || n < 1) {
+        showError("Please enter a valid number of features.");
+        return;
+    }
+    hideError();
+
+    const featureFields = document.getElementById("featureFields");
+    const testFields = document.getElementById("testFields");
+    featureFields.innerHTML = "";
+    testFields.innerHTML = "";
+
+    for (let i = 1; i <= n; i++) {
+        featureFields.innerHTML += `
+            <div class="feature-block">
+                <label>Feature ${i} Name</label>
+                <input type="text" class="featureName" placeholder="e.g. area_sqft">
+                <label>Feature ${i} Values (comma-separated)</label>
+                <input type="text" class="featureValues" placeholder="e.g. 1200,1500,1800,2000">
+            </div>`;
+    }
+
+    document.getElementById("featuresCard").style.display = "block";
+    document.getElementById("testCard").style.display = "block";
+
+    // Rebuild test fields whenever feature names change
+    document.querySelectorAll(".featureName").forEach(input => {
+        input.addEventListener("input", rebuildTestFields);
+    });
+    rebuildTestFields();
+}
+
+function rebuildTestFields() {
+    const names = Array.from(document.querySelectorAll(".featureName")).map(el => el.value || "Feature");
+    const testFields = document.getElementById("testFields");
+    testFields.innerHTML = "";
+    names.forEach((name, idx) => {
+        testFields.innerHTML += `
+            <label>${name}</label>
+            <input type="number" step="any" class="testValue" data-index="${idx}" placeholder="Enter value">`;
+    });
+}
+
+function collectFeatureData() {
+    const names = Array.from(document.querySelectorAll(".featureName")).map(el => el.value.trim());
+    const valuesRaw = Array.from(document.querySelectorAll(".featureValues")).map(el => el.value.trim());
+
+    const feature_values = {};
+    names.forEach((name, idx) => {
+        feature_values[name] = valuesRaw[idx].split(",").map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    });
+    return { names, feature_values };
+}
+
+function collectTestValues(names) {
+    const test_values = {};
+    document.querySelectorAll(".testValue").forEach((el, idx) => {
+        test_values[names[idx]] = parseFloat(el.value);
+    });
+    return test_values;
+}
+
+async function trainAndPredict() {
+    hideError();
+    const { names, feature_values } = collectFeatureData();
+
+    if (names.length === 0 || names.some(n => !n)) {
+        showError("Please name every feature.");
+        return;
+    }
+
+    const target_name = document.getElementById("targetName").value.trim();
+    const target_values = document.getElementById("targetValues").value
+        .split(",").map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+
+    if (!target_name || target_values.length === 0) {
+        showError("Please enter the target name and its values.");
+        return;
+    }
+
+    const test_values = collectTestValues(names);
+    if (Object.values(test_values).some(v => isNaN(v))) {
+        showError("Please fill in all prediction values.");
+        return;
+    }
+
+    featureNames = names;
+
+    const payload = {
+        feature_names: names,
+        feature_values: feature_values,
+        target_name: target_name,
+        target_values: target_values,
+        test_values: test_values
+    };
+
+    const res = await fetch("/train", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+        showError(data.error || "Something went wrong.");
+        return;
+    }
+
+    document.getElementById("predictionValue").textContent = data.prediction;
+    document.getElementById("r2Value").textContent = data.metrics.r2;
+    document.getElementById("mseValue").textContent = data.metrics.mse;
+    document.getElementById("rmseValue").textContent = data.metrics.rmse;
+    document.getElementById("maeValue").textContent = data.metrics.mae;
+
+    let tableHtml = "<tr><th>Feature</th><th>Coefficient</th></tr>";
+    for (const [k, v] of Object.entries(data.coefficients)) {
+        tableHtml += `<tr><td>${k}</td><td>${v}</td></tr>`;
+    }
+    tableHtml += `<tr><td><b>Intercept</b></td><td>${data.intercept}</td></tr>`;
+    document.getElementById("coefTable").innerHTML = tableHtml;
+
+    document.getElementById("resultsCard").style.display = "block";
+}
+
+async function visualize() {
+    hideError();
+    const res = await fetch("/visualize", { method: "POST" });
+    const data = await res.json();
+
+    if (!res.ok) {
+        showError(data.error || "Please train the model first.");
+        return;
+    }
+
+    document.getElementById("regressionPlot").src = "data:image/png;base64," + data.regression_plot;
+    document.getElementById("metricsPlot").src = "data:image/png;base64," + data.metrics_plot;
+    document.getElementById("graphsCard").style.display = "block";
+}
+
+async function resetAll() {
+    await fetch("/reset", { method: "POST" });
+
+    document.getElementById("numFeatures").value = "";
+    document.getElementById("featuresCard").style.display = "none";
+    document.getElementById("testCard").style.display = "none";
+    document.getElementById("resultsCard").style.display = "none";
+    document.getElementById("graphsCard").style.display = "none";
+    document.getElementById("featureFields").innerHTML = "";
+    document.getElementById("testFields").innerHTML = "";
+    document.getElementById("targetName").value = "";
+    document.getElementById("targetValues").value = "";
+    hideError();
+}
+
+function showError(msg) {
+    const box = document.getElementById("errorBox");
+    box.textContent = msg;
+    box.style.display = "block";
+}
+
+function hideError() {
+    document.getElementById("errorBox").style.display = "none";
+}
+</script>
+
+</body>
+</html>
